@@ -39,12 +39,18 @@ uint8_t potPin = 0;      // Analog pin for using pot
 bool setColor = false;
 bool recieveIndex = true;
 bool mainInterruptAnimation = false;
+int mainCurrentAnimationIndex = 0;
+int mainMaxNumAnimations = 4;
 int currentColorIndex = 0;
 int globalSectorIndex = 0;
 int globalDelay = 50;
 int colorArray[3] = {128, 128, 0};
 byte orangeAttempt[3] = {255,40,0};
 byte blueAttempt[3] = {0,190,255};
+int allColorsEnabled[3] = {1,1,1};
+int onlyBlueEnabled[3] = {0,0,1};
+int onlyGreenEnabled[3] = {0,1,0};
+int onlyRedEnabled[3] = {1,0,0};
 struct Colors {
   int red;
   int green;
@@ -82,9 +88,9 @@ void setup() {
   pinMode(buttonPin, INPUT);
   attachInterrupt(digitalPinToInterrupt(buttonPin), setReadAnalogAndChangeCurrentColor, RISING);
 
-  colors.red =0;
-  colors.green=0;
-  colors.blue=0;
+  colors.red = 0;
+  colors.green = 0;
+  colors.blue = 0;
 
   animation.setLightStrip(strip);
   strip.begin();
@@ -107,6 +113,21 @@ void serialEvent(){
   globalDelay = recievedData;
 }
 
+void selectCurrentAnimation() {
+  switch (mainCurrentAnimationIndex){
+    case 0: animation.granularSectorFadeCycle(globalDelay, onlyBlueEnabled, false);
+      break;
+    case 1: animation.rainbow(globalDelay);
+      break;
+    case 2: animation.rainbowCycle(globalDelay);
+      break;
+    case 3: animation.linearSectorFadeCycleAllColors(globalDelay);
+      break;
+    default: animation.granularSectorFadeCycle(globalDelay, onlyBlueEnabled, false);
+      break;
+  }
+}
+
 void loop() {
   // Some example procedures showing how to display to the pixels
 
@@ -125,9 +146,13 @@ void loop() {
     setColor = !setColor;
   }
 
-  animation.granularSectorFadeCycle(globalDelay, 0);
+  // animation.granularSectorFadeCycle(globalDelay, 0);
+  selectCurrentAnimation();
   if(mainInterruptAnimation) {
     animation.animationReset(globalDelay);
+    mainCurrentAnimationIndex = (mainCurrentAnimationIndex + 1) % mainMaxNumAnimations;
+    Serial.print("mainCurrentAnimationIndex:");
+    Serial.println(mainCurrentAnimationIndex);
     mainInterruptAnimation = false;
   }
 }

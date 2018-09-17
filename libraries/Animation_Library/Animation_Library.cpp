@@ -28,6 +28,35 @@ uint32_t Color(byte r, byte g, byte b)
   return c;
 }
 
+byte determineColorValue(byte color, int weight){
+  byte colorWeight = 0;
+  if(weight == 0) {
+    colorWeight = 0;
+  } else if(weight == 1) {
+    colorWeight = color;
+  } else {
+    colorWeight = color/weight;
+  }
+
+  return colorWeight;
+}
+
+uint32_t ColorByWeight(int colorValue, int colorWeight[]) {
+  byte r;
+  byte g;
+  byte b;
+  //
+  // r = determineColorValue(rgb[0], colorWeight[0]);
+  // g = determineColorValue(rgb[1], colorWeight[1]);
+  // b = determineColorValue(rgb[2], colorWeight[2]);
+
+  r = determineColorValue(colorValue, colorWeight[0]);
+  g = determineColorValue(colorValue, colorWeight[1]);
+  b = determineColorValue(colorValue, colorWeight[2]);
+
+  return Color(r, g, b);
+}
+
 //Input a value 0 to 255 to get a color value.
 //The colours are a transition r - g -b - back to r
 uint32_t Wheel(byte WheelPos)
@@ -43,25 +72,42 @@ uint32_t Wheel(byte WheelPos)
   }
 }
 
-void rainbow(uint8_t wait) {
+void Animation_Library::rainbow(uint8_t wait) {
   int i, j;
 
   for (j=0; j < 256; j++) {     // 3 cycles of all 256 colors in the wheel
+    if(interruptAnimation) {
+      break;
+    }
     for (i=0; i < lightStrip.numPixels(); i++) {
+      if(interruptAnimation) {
+        break;
+      }
       lightStrip.setPixelColor(i, Wheel( (i + j) % 255));
     }
     lightStrip.show();   // write all the pixels out
     delay(wait);
   }
+
+  if(interruptAnimation) {
+    interruptAnimation = false;
+  }
 }
 
 // Slightly different, this one makes the rainbow wheel equally distributed
 // along the chain
-void rainbowCycle(uint8_t wait) {
+void Animation_Library::rainbowCycle(uint8_t wait) {
   int i, j;
 
   for (j=0; j < 256 * 5; j++) {     // 5 cycles of all 25 colors in the wheel
+    if(interruptAnimation) {
+      break;
+    }
     for (i=0; i < lightStrip.numPixels(); i++) {
+      if(interruptAnimation) {
+        break;
+      }
+
       // tricky math! we use each pixel as a fraction of the full 96-color wheel
       // (thats the i / lightStrip.numPixels() part)
       // Then add in j which makes the colors go around per pixel
@@ -70,6 +116,10 @@ void rainbowCycle(uint8_t wait) {
     }
     lightStrip.show();   // write all the pixels out
     delay(wait);
+  }
+
+  if(interruptAnimation) {
+    interruptAnimation = false;
   }
 }
 
@@ -95,7 +145,7 @@ void Animation_Library::setPixelInSectorColorDoNotUpdateDisplay(int sectorIndex,
   }
 }
 
-void Animation_Library::setSectorFadeByPixel(int sectorIndex, int sectorPixel, uint32_t pixelColor){
+void Animation_Library::setSectorFadeByPixel(int sectorIndex, int sectorPixel, int colorWeight[]){
   if(sectorIndex < NUM_SECTORS && sectorPixel < NUM_PIXELS_PER_SECTOR){
     for(int i=0; i<NUM_SECTORS; i++){
       int diffFromTargetSector = i - sectorIndex;
@@ -103,10 +153,12 @@ void Animation_Library::setSectorFadeByPixel(int sectorIndex, int sectorPixel, u
       int adjustedOffset = 0;
       if(diffFromTargetSector<0){
         adjustedOffset = ((diffFromTargetSector + NUM_SECTORS) * 2) + sectorPixel;
-        setPixelInSectorColorDoNotUpdateDisplay(i, sectorPixel, Color(0, 0, sectorFadePixelValues[adjustedOffset]));
+        setPixelInSectorColorDoNotUpdateDisplay(i, sectorPixel, ColorByWeight(sectorFadePixelValues[adjustedOffset], colorWeight));
+        // setPixelInSectorColorDoNotUpdateDisplay(i, sectorPixel, Color(0, 0, sectorFadePixelValues[adjustedOffset]));
       } else {
         adjustedOffset = ((diffFromTargetSector) * 2) + sectorPixel;
-        setPixelInSectorColorDoNotUpdateDisplay(i, sectorPixel, Color(0, 0, sectorFadePixelValues[adjustedOffset]));
+        setPixelInSectorColorDoNotUpdateDisplay(i, sectorPixel, ColorByWeight(sectorFadePixelValues[adjustedOffset], colorWeight));
+        // setPixelInSectorColorDoNotUpdateDisplay(i, sectorPixel, Color(0, 0, sectorFadePixelValues[adjustedOffset]));
       }
     }
   }
@@ -114,7 +166,7 @@ void Animation_Library::setSectorFadeByPixel(int sectorIndex, int sectorPixel, u
 
 
 // sets each pixel per sector, somewhat out of order, resulting in a glow effect.
-void Animation_Library::granularSectorFadeCycle(int wait, uint32_t pixelColor){
+void Animation_Library::granularSectorFadeCycle(int wait, int colorWeight[], bool isNestedFunction){
   for(int i=0; i<NUM_SECTORS;i++) {
     if(interruptAnimation) {
       break;
@@ -123,13 +175,13 @@ void Animation_Library::granularSectorFadeCycle(int wait, uint32_t pixelColor){
       if(interruptAnimation) {
         break;
       }
-      setSectorFadeByPixel(i, j, 0);
+      setSectorFadeByPixel(i, j, colorWeight);
       lightStrip.show();
       delay(wait);
     }
   }
 
-  if(interruptAnimation) {
+  if(interruptAnimation && !isNestedFunction) {
     interruptAnimation = false;
   }
 }
@@ -137,6 +189,56 @@ void Animation_Library::granularSectorFadeCycle(int wait, uint32_t pixelColor){
 // sets each pixel per sector in order
 void Animation_Library::linearSectorFadeCycle(int wait, uint32_t pixelColor){
 
+}
+
+// sets each pixel per sector, somewhat out of order, resulting in a glow effect.
+void Animation_Library::granularSectorFadeCycleAllColors(int wait){
+  int colorCycleWeight[3] = {0, 0, 0};
+  for(int i=0; i<3; i++){
+    if(interruptAnimation) {
+      break;
+    }
+
+    for(int j=0; j<3; j++){
+      if(j == i) {
+        colorCycleWeight[j] = 1;
+      } else {
+        colorCycleWeight[j] = 0;
+      }
+    }
+    granularSectorFadeCycle(wait, colorCycleWeight, true);
+    setOnePixelColorAtATime(50, Color(0, 0, 0), true);
+    delay(150);
+  }
+
+  if(interruptAnimation) {
+    interruptAnimation = false;
+  }
+}
+
+// sets each pixel per sector, somewhat out of order, resulting in a glow effect.
+void Animation_Library::linearSectorFadeCycleAllColors(int wait){
+  int colorCycleWeight[3] = {0, 0, 0};
+  for(int i=0; i<3; i++){
+    if(interruptAnimation) {
+      break;
+    }
+
+    for(int j=0; j<3; j++){
+      if(j == i) {
+        colorCycleWeight[j] = 1;
+      } else {
+        colorCycleWeight[j] = 0;
+      }
+    }
+    setOnePixelColorAtATime(wait, ColorByWeight(255, colorCycleWeight), true);
+    // setOnePixelColorAtATime(50, Color(0,0,0), true);
+    // delay(150);
+  }
+
+  if(interruptAnimation) {
+    interruptAnimation = false;
+  }
 }
 
 // animation to play after reset
@@ -158,6 +260,26 @@ void Animation_Library::setSectorColorDoNotUpdateDisplay(int sectorIndex, uint32
   }
 }
 
+void Animation_Library::setOnePixelColorAtATime(int wait, uint32_t pixelColor, bool isNestedFunction) {
+  for(int i=0; i<NUM_SECTORS; i++) {
+    if(interruptAnimation) {
+      break;
+    }
+    for(int j=0; j<NUM_PIXELS_PER_SECTOR; j++) {
+      if(interruptAnimation) {
+        break;
+      }
+      lightStrip.setPixelColor(sectorIndices[i][j], pixelColor);
+      lightStrip.show();
+      delay(wait);
+    }
+  }
+
+  if(interruptAnimation && !isNestedFunction) {
+    interruptAnimation = false;
+  }
+}
+
 void Animation_Library::setSectorFade(int sectorIndex, uint32_t pixelColor){
   if(sectorIndex < NUM_SECTORS){
     for(int i=0; i<NUM_SECTORS; i++){
@@ -165,6 +287,7 @@ void Animation_Library::setSectorFade(int sectorIndex, uint32_t pixelColor){
 
       if(diffFromTargetSector<0){
         setSectorColorDoNotUpdateDisplay(i, Color(0, 0, sectorFadeValues[diffFromTargetSector + NUM_SECTORS]));
+        setSectorColorDoNotUpdateDisplay(i, pixelColor);
       } else {
         setSectorColorDoNotUpdateDisplay(i, Color(0, 0, sectorFadeValues[diffFromTargetSector]));
       }
@@ -175,7 +298,7 @@ void Animation_Library::setSectorFade(int sectorIndex, uint32_t pixelColor){
 
 void Animation_Library::sectorFadeCycle(int wait, uint32_t pixelColor){
   for(int i=0; i<NUM_SECTORS;i++){
-    setSectorFade(i, 0);
+    setSectorFade(i, pixelColor);
     delay(wait);
   }
 }
