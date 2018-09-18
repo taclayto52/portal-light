@@ -23,7 +23,8 @@ class Animation_Library {
      animationReset(int wait),
      setInterruptAnimation(),
      setOnePixelColorAtATime(int wait, uint32_t pixelColor, bool isNestedFunction),
-     linearSectorFadeCycleAllColors(int wait);
+     linearSectorCycleAllColors(int wait),
+     randomSetPixel(int wait, bool isNestedFunction);
 };
 
 #endif

@@ -7,7 +7,7 @@
 int sectorIndices[8][2] = {{5,13},{6,14},{7,15}, {0,8}, {1,9}, {2,10}, {3,11}, {4,12}};
 int sectorFadeValues[8] = {255,223,191,159,127,95,63,31};
 int sectorFadePixelValues[16] = {255,239,223,207,191,175,159,143,127,111,95,79,63,47,31,15};
-bool interruptAnimation = false;
+volatile bool interruptAnimation = false;
 Adafruit_WS2801 lightStrip;
 
 void Animation_Library::setInterruptAnimation() {
@@ -165,7 +165,7 @@ void Animation_Library::setSectorFadeByPixel(int sectorIndex, int sectorPixel, i
 }
 
 
-// sets each pixel per sector, somewhat out of order, resulting in a glow effect.
+// sets each pixel per sector, somewha`t out of order, resulting in a glow effect.
 void Animation_Library::granularSectorFadeCycle(int wait, int colorWeight[], bool isNestedFunction){
   for(int i=0; i<NUM_SECTORS;i++) {
     if(interruptAnimation) {
@@ -217,7 +217,7 @@ void Animation_Library::granularSectorFadeCycleAllColors(int wait){
 }
 
 // sets each pixel per sector, somewhat out of order, resulting in a glow effect.
-void Animation_Library::linearSectorFadeCycleAllColors(int wait){
+void Animation_Library::linearSectorCycleAllColors(int wait){
   int colorCycleWeight[3] = {0, 0, 0};
   for(int i=0; i<3; i++){
     if(interruptAnimation) {
@@ -335,5 +335,28 @@ void Animation_Library::setOnePixelAndClearOthers(int pixelIndex, uint32_t pixel
       }
     }
     lightStrip.show();
+  }
+}
+
+uint32_t randomColor(){
+  int r = rand() % 256;
+  int g = rand() % 256;
+  int b = rand() % 256;
+
+  return Color(r, g ,b);
+}
+
+void Animation_Library::randomSetPixel(int wait, bool isNestedFunction){
+  while(!interruptAnimation) {
+    int randSectorIndex = rand() % NUM_SECTORS;
+    int randPixelIndex = rand() % NUM_PIXELS_PER_SECTOR;
+
+    lightStrip.setPixelColor(sectorIndices[randSectorIndex][randPixelIndex], randomColor());
+    lightStrip.show();
+    delay(wait);
+  }
+
+  if(interruptAnimation && !isNestedFunction) {
+    interruptAnimation = false;
   }
 }
